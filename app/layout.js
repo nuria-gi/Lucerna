@@ -1,3 +1,5 @@
+import './globals.css';
+
 export const metadata = {
   title: 'La Lucera de Peñafiel',
   description: 'Gestión de la casa rural La Lucera de Peñafiel',
