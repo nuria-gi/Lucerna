@@ -25,4 +25,4 @@ npm run dev
 ## Despliegue
 
 Este proyecto está conectado a Vercel: cada push a `main` despliega automáticamente a producción.
-Variables de entorno configuradas en Vercel: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+Variables de entorno configuradas en Vercel: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (clave anon clásica JWT).
