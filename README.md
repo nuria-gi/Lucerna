@@ -24,4 +24,5 @@ npm run dev
 
 ## Despliegue
 
-Este proyecto está pensado para desplegarse en Vercel, conectado directamente a este repositorio.
+Este proyecto está conectado a Vercel: cada push a `main` despliega automáticamente a producción.
+Variables de entorno necesarias en Vercel: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
