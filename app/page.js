@@ -6,6 +6,9 @@ export default function Home() {
       <p>
         <a href="/habitaciones">Ver habitaciones disponibles &rarr;</a>
       </p>
+      <p>
+        <a href="/login">Acceder o registrarme &rarr;</a>
+      </p>
     </main>
   );
 }
