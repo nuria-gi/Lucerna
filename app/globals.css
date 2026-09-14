@@ -145,3 +145,16 @@ a {
   font-size: 0.9rem;
   margin-top: 0.5rem;
 }
+
+.viajero-fieldset {
+  border: 1px solid #e2ddd6;
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  background: #fff;
+}
+
+.viajero-fieldset legend {
+  font-weight: 600;
+  padding: 0 0.4rem;
+}
