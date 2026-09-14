@@ -4,16 +4,17 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabaseClient';
 
-function viajeroVacio(esTitular) {
+function viajeroVacio() {
   return {
-    es_titular: esTitular,
     nombre: '',
     apellidos: '',
     fecha_nacimiento: '',
-    sexo: 'H',
-    nacionalidad: 'Española',
+    sexo: 'Mujer',
+    nacionalidad: 'España',
     tipo_documento: 'DNI',
     numero_documento: '',
+    anverso: null,
+    reverso: null,
   };
 }
 
@@ -23,8 +24,8 @@ export default function CheckinPage() {
 
   const [sesion, setSesion] = useState(undefined);
   const [reserva, setReserva] = useState(null);
-  const [viajerosExistentes, setViajerosExistentes] = useState(null);
   const [viajeros, setViajeros] = useState([]);
+  const [yaRegistrados, setYaRegistrados] = useState(0);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState(null);
   const [ok, setOk] = useState(false);
@@ -48,70 +49,92 @@ export default function CheckinPage() {
         .single();
 
       if (reservaError || !reservaData) {
-        setError('No se ha encontrado la reserva.');
+        setError('No se ha encontrado esa reserva.');
         return;
       }
 
       setReserva(reservaData);
 
-      const { data: viajerosData } = await supabase
+      const { count } = await supabase
         .from('viajeros_reserva')
-        .select('id, nombre, apellidos, es_titular')
+        .select('id', { count: 'exact', head: true })
         .eq('reserva_id', reservaId);
 
-      setViajerosExistentes(viajerosData || []);
+      setYaRegistrados(count || 0);
 
-      if (!viajerosData || viajerosData.length === 0) {
-        const n = reservaData.num_huespedes || 1;
-        setViajeros(Array.from({ length: n }, (_, i) => viajeroVacio(i === 0)));
-      }
+      const pendientes = Math.max((reservaData.num_huespedes || 1) - (count || 0), 0);
+      setViajeros(Array.from({ length: pendientes || 1 }, viajeroVacio));
     }
 
     cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reservaId, router]);
 
-  function actualizarViajero(index, campo, valor) {
-    setViajeros((prev) =>
-      prev.map((v, i) => (i === index ? { ...v, [campo]: valor } : v))
-    );
+  function actualizarViajero(i, campo, valor) {
+    setViajeros((prev) => {
+      const copia = [...prev];
+      copia[i] = { ...copia[i], [campo]: valor };
+      return copia;
+    });
+  }
+
+  async function subirFoto(file, sufijo, index) {
+    if (!file) return null;
+    const extension = file.name.split('.').pop();
+    const ruta = `${reservaId}/${Date.now()}-${index}-${sufijo}.${extension}`;
+    const { error: uploadError } = await supabase.storage
+      .from('documentos-viajeros')
+      .upload(ruta, file);
+
+    if (uploadError) {
+      throw new Error('No se ha podido subir la foto del documento.');
+    }
+    return ruta;
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError(null);
-
-    for (const v of viajeros) {
-      if (!v.nombre || !v.apellidos || !v.fecha_nacimiento || !v.nacionalidad || !v.numero_documento) {
-        setError('Completa todos los campos de todos los viajeros.');
-        return;
-      }
-    }
-
     setEnviando(true);
 
-    for (const v of viajeros) {
-      const { error: rpcError } = await supabase.rpc('registrar_viajero', {
-        p_reserva_id: reservaId,
-        p_es_titular: v.es_titular,
-        p_nombre: v.nombre,
-        p_apellidos: v.apellidos,
-        p_fecha_nacimiento: v.fecha_nacimiento,
-        p_sexo: v.sexo,
-        p_nacionalidad: v.nacionalidad,
-        p_tipo_documento: v.tipo_documento,
-        p_numero_documento: v.numero_documento,
-      });
+    try {
+      for (let i = 0; i < viajeros.length; i++) {
+        const v = viajeros[i];
 
-      if (rpcError) {
-        setError('No se ha podido registrar a uno de los viajeros. Inténtalo de nuevo.');
-        setEnviando(false);
-        return;
+        if (!v.nombre || !v.apellidos || !v.fecha_nacimiento || !v.numero_documento) {
+          throw new Error(`Completa todos los datos obligatorios del viajero ${i + 1}.`);
+        }
+
+        const [rutaAnverso, rutaReverso] = await Promise.all([
+          subirFoto(v.anverso, 'anverso', i),
+          subirFoto(v.reverso, 'reverso', i),
+        ]);
+
+        const { error: rpcError } = await supabase.rpc('registrar_viajero', {
+          p_reserva_id: reservaId,
+          p_es_titular: yaRegistrados === 0 && i === 0,
+          p_nombre: v.nombre,
+          p_apellidos: v.apellidos,
+          p_fecha_nacimiento: v.fecha_nacimiento,
+          p_sexo: v.sexo,
+          p_nacionalidad: v.nacionalidad,
+          p_tipo_documento: v.tipo_documento,
+          p_numero_documento: v.numero_documento,
+          p_ruta_anverso: rutaAnverso,
+          p_ruta_reverso: rutaReverso,
+        });
+
+        if (rpcError) {
+          throw new Error('No se han podido guardar los datos de uno de los viajeros.');
+        }
       }
-    }
 
-    setEnviando(false);
-    setOk(true);
+      setOk(true);
+    } catch (err) {
+      setError(err.message || 'Ha ocurrido un error al guardar el check-in.');
+    } finally {
+      setEnviando(false);
+    }
   }
 
   if (error && !reserva) {
@@ -122,7 +145,7 @@ export default function CheckinPage() {
     );
   }
 
-  if (!reserva || viajerosExistentes === null) {
+  if (sesion === undefined || !reserva) {
     return (
       <main className="container">
         <p>Cargando…</p>
@@ -130,98 +153,109 @@ export default function CheckinPage() {
     );
   }
 
-  if (ok || viajerosExistentes.length > 0) {
-    const lista = ok ? viajeros : viajerosExistentes;
+  if (ok) {
     return (
-      <main className="container">
+      <main className="container login-container">
         <h1>Check-in completado</h1>
         <p>
-          Reserva en <strong>{reserva.propiedades?.nombre}</strong> ({reserva.fecha_entrada} &rarr;{' '}
-          {reserva.fecha_salida})
+          Hemos registrado los datos de tus acompañantes para cumplir con el registro de
+          viajeros exigido por la normativa española.
         </p>
-        <ul>
-          {lista.map((v, i) => (
-            <li key={v.id || i}>
-              {v.nombre} {v.apellidos} {v.es_titular ? '(titular)' : ''}
-            </li>
-          ))}
-        </ul>
-        <p>Los datos se han guardado de forma cifrada, listos para la comunicación a las Fuerzas y Cuerpos de Seguridad (SES.Hospedajes).</p>
+        <a href="/mis-reservas">Volver a mis reservas &rarr;</a>
       </main>
     );
   }
 
   return (
-    <main className="container">
-      <h1>Check-in</h1>
+    <main className="container login-container">
+      <h1>Check-in — {reserva.propiedades?.nombre}</h1>
       <p className="descripcion">
-        Reserva en <strong>{reserva.propiedades?.nombre}</strong> ({reserva.fecha_entrada} &rarr;{' '}
-        {reserva.fecha_salida}). Introduce los datos de cada huésped, tal y como exige el registro
-        de viajeros (SES.Hospedajes).
+        {reserva.fecha_entrada} → {reserva.fecha_salida} · {reserva.num_huespedes}{' '}
+        {reserva.num_huespedes === 1 ? 'huésped' : 'huéspedes'}
+      </p>
+      <p className="descripcion">
+        Estos datos son obligatorios por el Real Decreto de registro de viajeros y se guardan
+        cifrados. Necesitamos el documento de identidad de cada persona alojada.
       </p>
 
       <form onSubmit={handleSubmit}>
         {viajeros.map((v, i) => (
-          <fieldset key={i} className="viajero-fieldset">
-            <legend>Huésped {i + 1} {v.es_titular ? '(titular de la reserva)' : ''}</legend>
+          <fieldset key={i} className="login-form" style={{ marginBottom: '1.5rem' }}>
+            <legend>
+              <strong>
+                Viajero {yaRegistrados + i + 1} de {reserva.num_huespedes}
+              </strong>
+            </legend>
 
-            <div className="login-form">
-              <label>Nombre</label>
-              <input
-                type="text"
-                value={v.nombre}
-                onChange={(e) => actualizarViajero(i, 'nombre', e.target.value)}
-                required
-              />
+            <label>Nombre</label>
+            <input
+              type="text"
+              value={v.nombre}
+              onChange={(e) => actualizarViajero(i, 'nombre', e.target.value)}
+              required
+            />
 
-              <label>Apellidos</label>
-              <input
-                type="text"
-                value={v.apellidos}
-                onChange={(e) => actualizarViajero(i, 'apellidos', e.target.value)}
-                required
-              />
+            <label>Apellidos</label>
+            <input
+              type="text"
+              value={v.apellidos}
+              onChange={(e) => actualizarViajero(i, 'apellidos', e.target.value)}
+              required
+            />
 
-              <label>Fecha de nacimiento</label>
-              <input
-                type="date"
-                value={v.fecha_nacimiento}
-                onChange={(e) => actualizarViajero(i, 'fecha_nacimiento', e.target.value)}
-                required
-              />
+            <label>Fecha de nacimiento</label>
+            <input
+              type="date"
+              value={v.fecha_nacimiento}
+              onChange={(e) => actualizarViajero(i, 'fecha_nacimiento', e.target.value)}
+              required
+            />
 
-              <label>Sexo</label>
-              <select value={v.sexo} onChange={(e) => actualizarViajero(i, 'sexo', e.target.value)}>
-                <option value="H">Hombre</option>
-                <option value="M">Mujer</option>
-              </select>
+            <label>Sexo</label>
+            <select value={v.sexo} onChange={(e) => actualizarViajero(i, 'sexo', e.target.value)}>
+              <option value="Mujer">Mujer</option>
+              <option value="Hombre">Hombre</option>
+            </select>
 
-              <label>Nacionalidad</label>
-              <input
-                type="text"
-                value={v.nacionalidad}
-                onChange={(e) => actualizarViajero(i, 'nacionalidad', e.target.value)}
-                required
-              />
+            <label>Nacionalidad</label>
+            <input
+              type="text"
+              value={v.nacionalidad}
+              onChange={(e) => actualizarViajero(i, 'nacionalidad', e.target.value)}
+              required
+            />
 
-              <label>Tipo de documento</label>
-              <select
-                value={v.tipo_documento}
-                onChange={(e) => actualizarViajero(i, 'tipo_documento', e.target.value)}
-              >
-                <option value="DNI">DNI</option>
-                <option value="NIE">NIE</option>
-                <option value="PASAPORTE">Pasaporte</option>
-              </select>
+            <label>Tipo de documento</label>
+            <select
+              value={v.tipo_documento}
+              onChange={(e) => actualizarViajero(i, 'tipo_documento', e.target.value)}
+            >
+              <option value="DNI">DNI</option>
+              <option value="NIE">NIE</option>
+              <option value="Pasaporte">Pasaporte</option>
+            </select>
 
-              <label>Número de documento</label>
-              <input
-                type="text"
-                value={v.numero_documento}
-                onChange={(e) => actualizarViajero(i, 'numero_documento', e.target.value)}
-                required
-              />
-            </div>
+            <label>Número de documento</label>
+            <input
+              type="text"
+              value={v.numero_documento}
+              onChange={(e) => actualizarViajero(i, 'numero_documento', e.target.value)}
+              required
+            />
+
+            <label>Foto del documento (anverso)</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => actualizarViajero(i, 'anverso', e.target.files[0])}
+            />
+
+            <label>Foto del documento (reverso)</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => actualizarViajero(i, 'reverso', e.target.files[0])}
+            />
           </fieldset>
         ))}
 
