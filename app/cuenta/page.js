@@ -58,6 +58,12 @@ export default function CuentaPage() {
       <p>
         <strong>Rol:</strong> {perfil.rol}
       </p>
+      <p>
+        <a href="/reservar">Hacer una reserva &rarr;</a>
+      </p>
+      <p>
+        <a href="/mis-reservas">Ver mis reservas &rarr;</a>
+      </p>
       <button onClick={cerrarSesion}>Cerrar sesión</button>
     </main>
   );
