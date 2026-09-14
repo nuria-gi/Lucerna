@@ -65,6 +65,10 @@ export default async function HabitacionesPage() {
                   ))}
                 </div>
               )}
+
+              <p>
+                <a href={`/reservar?habitacion=${h.id}`}>Reservar &rarr;</a>
+              </p>
             </div>
           </article>
         ))}
