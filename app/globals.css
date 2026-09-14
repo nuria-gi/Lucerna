@@ -19,6 +19,15 @@ a {
   font-family: sans-serif;
 }
 
+.tarifas {
+  background: #f1ece6;
+  color: #5a3a20;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  display: inline-block;
+  font-size: 0.95rem;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
