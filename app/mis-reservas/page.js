@@ -96,7 +96,12 @@ export default function MisReservasPage() {
                 <span className="tag">{ESTADO_LABEL[r.estado] || r.estado}</span>
               </p>
               {(r.estado === 'pendiente' || r.estado === 'confirmada') && (
-                <button onClick={() => cancelar(r.id)}>Cancelar reserva</button>
+                <>
+                  <p>
+                    <a href={`/checkin/${r.id}`}>Hacer check-in &rarr;</a>
+                  </p>
+                  <button onClick={() => cancelar(r.id)}>Cancelar reserva</button>
+                </>
               )}
             </div>
           </article>
