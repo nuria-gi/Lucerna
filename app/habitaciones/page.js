@@ -3,11 +3,10 @@ import { supabase } from '../../lib/supabaseClient';
 export const revalidate = 60;
 
 export default async function HabitacionesPage() {
-  const { data: habitaciones, error } = await supabase
-    .from('propiedades')
-    .select('*')
-    .eq('activa', true)
-    .order('precio_noche', { ascending: true });
+  const [{ data: habitaciones, error }, { data: tarifas }] = await Promise.all([
+    supabase.from('propiedades').select('*').eq('activa', true).order('nombre'),
+    supabase.from('tarifas_casa').select('*'),
+  ]);
 
   if (error) {
     return (
@@ -18,9 +17,20 @@ export default async function HabitacionesPage() {
     );
   }
 
+  const tarifaFinde = tarifas?.find((t) => t.tipo === 'fin_de_semana')?.precio_noche;
+  const tarifaEntreSemana = tarifas?.find((t) => t.tipo === 'entre_semana')?.precio_noche;
+
   return (
     <main className="container">
       <h1>Nuestras habitaciones</h1>
+
+      {(tarifaFinde || tarifaEntreSemana) && (
+        <p className="tarifas">
+          {tarifaEntreSemana && <>De domingo a jueves: <strong>{tarifaEntreSemana} € / noche</strong></>}
+          {tarifaEntreSemana && tarifaFinde && ' · '}
+          {tarifaFinde && <>Viernes y sábado: <strong>{tarifaFinde} € / noche</strong></>}
+        </p>
+      )}
 
       {habitaciones.length === 0 && (
         <p>No hay habitaciones disponibles ahora mismo.</p>
@@ -55,8 +65,6 @@ export default async function HabitacionesPage() {
                   ))}
                 </div>
               )}
-
-              <p className="precio">{h.precio_noche} € / noche</p>
             </div>
           </article>
         ))}
