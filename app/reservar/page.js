@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '../../lib/supabaseClient';
 
@@ -22,7 +22,7 @@ function calcularPrecio(fechaEntrada, fechaSalida, tarifaFinde, tarifaEntreSeman
   return { noches, total };
 }
 
-export default function ReservarPage() {
+function ReservarForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -122,25 +122,21 @@ export default function ReservarPage() {
   }
 
   if (sesion === undefined) {
-    return (
-      <main className="container">
-        <p>Cargando…</p>
-      </main>
-    );
+    return <p>Cargando…</p>;
   }
 
   if (ok) {
     return (
-      <main className="container login-container">
+      <>
         <h1>¡Reserva creada!</h1>
         <p>Tu reserva está pendiente de confirmación. Puedes verla en “Mis reservas”.</p>
         <a href="/mis-reservas">Ir a mis reservas &rarr;</a>
-      </main>
+      </>
     );
   }
 
   return (
-    <main className="container login-container">
+    <>
       <h1>Reservar habitación</h1>
 
       <form onSubmit={handleSubmit} className="login-form">
@@ -197,6 +193,16 @@ export default function ReservarPage() {
           {enviando ? 'Reservando…' : 'Confirmar reserva'}
         </button>
       </form>
+    </>
+  );
+}
+
+export default function ReservarPage() {
+  return (
+    <main className="container login-container">
+      <Suspense fallback={<p>Cargando…</p>}>
+        <ReservarForm />
+      </Suspense>
     </main>
   );
 }
